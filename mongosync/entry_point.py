@@ -1,5 +1,6 @@
 from mongosync.oplog_sync import start_sync_oplog
 from mongosync import conf
+import logging
 import click
 import os
 
@@ -21,10 +22,14 @@ def resolution(string=""):
 @click.option("-m", "--db_map", default=conf.DB_MAP)
 @click.option("-a", "--await", default=conf.AWAIT, type=click.INT)
 @click.option("-t", "--ts_file", default=conf.TS_FILE)
+@click.option("-l", "--level", default="DEBUG")
 @click.option("--start", default=None)
 @click.option("--end", default=None)
 @click.argument("conf", default=None, required=False)
-def oplog(conf, **kwargs):
+def oplog(conf, level, **kwargs):
+    logging.basicConfig(format="%(asctime)s | %(levelname)s | %(filename)s:%(lineno)d | %(message)s",
+                        datefmt="%Y-%m-%d %H:%M:%S",
+                        level=getattr(logging, level))
     if conf is not None and os.path.isfile(conf):
         import json
         config = json.load(open(conf))
