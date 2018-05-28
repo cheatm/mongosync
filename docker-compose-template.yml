@@ -1,0 +1,18 @@
+version: '3'
+services:
+  mongosync:
+    container_name: mongosync
+    build: .
+    image: mongosync
+    restart: unless-stopped
+    command: mongosync oplog
+    network_mod: host
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+#    environment:
+#      SOURCE:
+#      TARGET:
+#      DB_MAP:
+#      TS_FILE:
+#      AWAIT:
