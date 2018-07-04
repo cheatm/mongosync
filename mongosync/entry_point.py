@@ -1,4 +1,5 @@
 from mongosync.oplog_sync import start_sync_oplog
+from mongosync.sync import command as sync_col
 from mongosync import conf
 import logging
 import click
@@ -41,7 +42,8 @@ def oplog(conf, level, **kwargs):
 
 
 group = click.Group("mongosync",
-                    {"oplog": oplog})
+                    {"oplog": oplog,
+                     "chunk": sync_col})
 
 
 if __name__ == '__main__':

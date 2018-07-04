@@ -5,12 +5,12 @@ services:
     build: .
     image: mongosync
     restart: unless-stopped
-    command: mongosync oplog
-    network_mod: host
+    network_mode: host
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
-#    environment:
+  environment:
+    # CHUNK_CONFS:
 #      SOURCE:
 #      TARGET:
 #      DB_MAP:

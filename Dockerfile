@@ -1,9 +1,11 @@
-FROM registry.docker-cn.com/library/python
+FROM daocloud.io/xingetouzi/python3-cron
+COPY requirements.txt ./
 
-ADD . /mongosync
-WORKDIR /mongosync
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
-RUN pip install -r requirements.txt
+COPY . ./
+
 RUN python setup.py install
+RUN crontab $PWD/routing/timelist
 
-CMD mongosync oplog
+CMD ["/usr/sbin/cron", "-f"]

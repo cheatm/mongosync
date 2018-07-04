@@ -1,5 +1,6 @@
 from pymongo.cursor import CursorType
 from pymongo import MongoClient
+from pymongo import errors
 from threading import Thread
 from queue import Queue, Empty
 from bson.timestamp import Timestamp
@@ -21,7 +22,7 @@ def get_ts(time):
 
 class OpLogTracker(Thread):
 
-    def __init__(self, client, filename, queue, await=5, start=None, end=None, filters=None):
+    def __init__(self, client, filename, queue, wait=5, start=None, end=None, filters=None):
         super(OpLogTracker, self).__init__()
         assert isinstance(client, MongoClient), type(client)
         self.client = client
@@ -32,7 +33,8 @@ class OpLogTracker(Thread):
         self.start_ts = get_ts(start)
         self.end_ts = get_ts(end)
         self.filters = filters if isinstance(filters, dict) else {}
-        self.await = await
+        self.wait = wait
+        self.daemon = True
 
     def init(self, start=None, end=None, filters=None):
         self.end_ts = end
@@ -56,7 +58,7 @@ class OpLogTracker(Thread):
         super(OpLogTracker, self).start()
 
     def join(self, timeout=None):
-        self.looping = False
+        # self.looping = False
         super(OpLogTracker, self).join(timeout)
 
     def last_log_time(self):
@@ -80,21 +82,27 @@ class OpLogTracker(Thread):
             filters.setdefault("ts", {})["$lt"] = end
         if len(filters) == 0:
             filters = None
-        return self.oplog.find(filters, cursor_type=CursorType.TAILABLE_AWAIT)
+        # return self.oplog.find(filters, cursor_type=CursorType.TAILABLE_AWAIT)
+        return self.oplog.find(filters, cursor_type=CursorType.TAILABLE)
 
     def op_loop(self, start=None, end=None, **filters):
         cursor = self.get_cursor(start, end, **filters)
-        cursor.max_await_time_ms(self.await*1000)
+        # cursor.max_await_time_ms(self.await*1000)
         while self.looping:
             try:
                 doc = cursor.next()
-            except StopIteration:
-                pass
-            except Exception:
+            except StopIteration as e:
+                # logging.error("tracker cursor stopped | %s", e)
+                sleep(self.wait)
+            except Exception as e:
+                
+                logging.error("tracker cursor error | %s", e)
                 break
             else:
                 yield doc
+            
         cursor.close()
+        logging.warning("oplog loop stoped")
 
     def start_loop(self, start=None, end=None, **filters):
         logging.warning("start oplog loop | %s | %s | %s", start, end, filters)
@@ -131,6 +139,7 @@ class OpLogExecutor(Thread):
         self.queue = queue
         from datetime import datetime
         self.ts = ts if isinstance(ts, Timestamp) else Timestamp(int(datetime.now().timestamp()), 1)
+        self.daemon = True
 
     def run(self):
         self.sync_op()
@@ -201,7 +210,11 @@ class SyncOpLogManager(object):
     def __init__(self, source, target, db_map, filename, await=5):
         self.queue = Queue()
         self.tracker = OpLogTracker(source, filename, self.queue, await)
-        self.executor = OpLogExecutor(target, db_map, self.queue)
+        try:
+            ts = self.tracker.last_sync_time()
+        except:
+            ts = None
+        self.executor = OpLogExecutor(target, db_map, self.queue, ts)
         self.filters = {}
         regex = [{"ns": {"$regex": key}} for key in self.executor.db_map]
         if len(regex) == 1:
@@ -213,29 +226,36 @@ class SyncOpLogManager(object):
         self.tracker.init(start, end, self.filters)
         self.tracker.start()
 
+    def check_status(self, start=None, end=None):
+        if not self.tracker.is_alive():
+            tracker = OpLogTracker(self.tracker.client, self.tracker.filename, self.queue)
+            self.tracker = tracker
+            self.start_tracker(start, end)
+
+        if not self.executor.is_alive():
+            executor = OpLogExecutor(self.executor.client, self.executor.db_map, self.queue, self.executor.ts)
+            self.executor = executor
+            self.executor.start()
+
+        try:
+            self.save_last_sync()
+        except:
+            pass
+
+        sleep(5)
+
     def sync(self, start=None, end=None):
         self.start_tracker(start, end)
         self.executor.start()
-        while True:
-            if not self.tracker.is_alive():
-                tracker = OpLogTracker(self.tracker.client, self.tracker.filename, self.queue)
-                self.tracker = tracker
-                self.start_tracker(start, end)
-
-            if not self.executor.is_alive():
-                executor = OpLogExecutor(self.executor.client, self.executor.db_map, self.queue, self.executor.ts)
-                self.executor = executor
-                self.executor.start()
-
-            try:
-                self.save_last_sync()
-            except:
-                pass
-
-            sleep(5)
+        # while True:
+        #     try:
+        #         self.check_status()
+        #     except KeyboardInterrupt:
+        #         break
 
         self.tracker.join()
-        self.executor.join()
+        self.executor.looping=False
+        self.executor.join(timeout=0)
 
     def save_last_sync(self):
         self.tracker.save_sync_time(self.executor.ts)
@@ -262,3 +282,18 @@ def start_sync_oplog(source, target, db_map, ts_file, await=5, start=None, end=N
     manager = SyncOpLogManager(source, target, db_map, ts_file, await)
     manager.sync(start, end)
 
+
+def main():
+    # from pymongo import MongoClient
+    # tracker = OpLogTracker(MongoClient(), r"D:\mongosync\mongosync\last_sync_ts", None)
+    # print(tracker.last_sync_time())
+    # tracker.save_sync_time(Timestamp(1528405396, 2))
+    start_sync_oplog(
+        source="mongodb://192.168.0.102,192.168.0.101",
+        target="mongodb://root:Xingerwudi520factor@dds-wz966a0a3eea1ce41896-pub.mongodb.rds.aliyuncs.com:3717,dds-wz966a0a3eea1ce42204-pub.mongodb.rds.aliyuncs.com:3717/admin?replicaSet=mgset-6035227",
+        db_map=["fxdayu_factors"],
+        ts_file=r"D:\mongosync\mongosync\last_sync_ts"
+    )
+
+if __name__ == '__main__':
+    main()
