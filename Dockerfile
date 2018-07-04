@@ -8,4 +8,6 @@ COPY . ./
 RUN python setup.py install
 RUN crontab $PWD/routing/timelist
 
+VOLUME ["/logs", "/conf"]
+
 CMD ["/usr/sbin/cron", "-f"]
