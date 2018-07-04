@@ -130,7 +130,7 @@ def command(filenames):
     if len(filenames) == 0:
         from mongosync import conf
         if conf.CHUNK_CONFS:
-            filenames.extend(conf.CHUNK_CONFS.split(":"))
+            filenames = conf.CHUNK_CONFS.split(":")
 
     for filename in filenames:
         if not os.path.isfile(filename):
