@@ -4,6 +4,7 @@ from functools import partial
 from collections import Iterable
 from mongosync.recycle import Recycler
 import logging
+import os
 import re
 
 
@@ -127,6 +128,7 @@ import click
 @click.command()
 @click.argument('filenames', nargs=-1)
 def command(filenames):
+    import yaml
     if len(filenames) == 0:
         from mongosync import conf
         if conf.CHUNK_CONFS:
