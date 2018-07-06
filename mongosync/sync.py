@@ -4,8 +4,12 @@ from functools import partial
 from collections import Iterable
 from mongosync.recycle import Recycler
 import logging
+from mongosync import logger
 import os
 import re
+
+
+logger.init()
 
 
 def match(format, name):

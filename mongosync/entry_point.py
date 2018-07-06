@@ -2,8 +2,13 @@ from mongosync.oplog_sync import start_sync_oplog
 from mongosync.sync import command as sync_col
 from mongosync import conf
 import logging
+from mongosync import logger
+import sys
 import click
 import os
+
+
+logger.init()
 
 
 def resolution(string=""):
